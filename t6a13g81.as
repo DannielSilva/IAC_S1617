@@ -1,44 +1,32 @@
 ;				~~~
-;	<<< Joao Daniel Silva 86445, Francisco Sousa, 86416 >>>
+;		<<< Joao Daniel Silva 86445, Francisco Sousa, 86416 >>>
 ;				~~~
 ; ZONA I:  CONSTANTES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 FIM_TEXTO       EQU     '@'
 LIMITE		EQU 	'#'
 ESPACO		EQU	' '
-NAVECAR1	EQU	'>'
-NAVECAR2	EQU	')'
-NAVECAR3	EQU	'\'
-NAVECAR4	EQU	'/'
 IO_READ         EQU     FFFFh
 IO_WRITE	EQU 	FFFEh
 IO_STATUS       EQU     FFFDh
 IO_CONTROLO	EQU	FFFCh
-LCD_WRITE	EQU	FFF5h
 SP_INICIAL      EQU     F0FFh
 INT_MASK_ADDR   EQU     FFFAh
-INT_MASK        EQU     0100000000001111b
+INT_MASK        EQU     0000000000001111b
 sup_esquerdo    EQU     0000h ;(0a linha, 0a coluna (00,00))
-sup_direito     EQU     004Eh ;(0a linha, 78a coluna (00,78))
+sup_direito     EQU     004Fh ;(0a linha, 79a coluna (00,79))
 inf_esquerdo    EQU     1700h ;(23a linha, 0a coluna(23,00))
-inf_direito     EQU     174Eh ;(23a linha, 79a coluna(23,78))
+inf_direito     EQU     174Fh ;(23a linha, 79a coluna(23,79))
 pos_canhao_i    EQU     0402h ;(04a linha, 02a coluna(04,02))
-pos_VarText1 	EQU 	0B23h ;(12a linha, 35a coluna)
-pos_VarText2 	EQU 	0D20h ;(14a linha, 32a coluna)
 
 ; ZONA II:  VARIAVEIS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         	ORIG    8000h
-Int0        	WORD    0
-Int1        	WORD    0
-Int2        	WORD    0
-Int3        	WORD    0
-IntE 		WORD 	0
+Int0            WORD    0
+Int1            WORD    0
+Int2            WORD    0
+Int3            WORD    0
 Canhao_pos	WORD	0
 Canhao_int	WORD    0
-VarTexto1       STR     'Prepare-se', FIM_TEXTO
-VarTexto2       STR     'Prima o botao IE', FIM_TEXTO
-EspacoVar1 	STR 	'          ', FIM_TEXTO
-EspacoVar2 	STR 	'                ', FIM_TEXTO
 
 ; ZONA III:  INTERRUPCOES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -47,8 +35,6 @@ INT_0           WORD    Descer
 INT_1           WORD    Subir
 INT_2           WORD    Esquerda
 INT_3           WORD    Direita
-		ORIG 	FE0Eh
-INT_E		WORD 	Comecar
 
 
 ; ZONA IV:  CODIGO ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -81,14 +67,11 @@ Direita:        INC M[Int3]
                 MOV M[Canhao_int], R1
                 RTI
 
-Comecar:	INC M[IntE]
-		RTI
-
 
 ;  ZONA IV.II: ROTINAS DE ESCRITA ----------------------------------------------
-;  EscCar:	Evoca a rotina EscCar para escrever a nave na janela de texto,
-;               com os carateres que a constituem. O canhao e' escrito primeiro
-;               e a posicao dos restantes componentes da nave sao
+;  EscCar:	Evoca a rotina EscCar para escrever a nave na janela de texto, 
+;               com os carateres que a constituem. O canhao e' escrito primeiro e 
+;               a posicao dos restantes componentes da nave sao 
 ;               dependentes da posicao dele
 ;               Entradas: pilha - posicao do canhao
 ;               Saidas: ---
@@ -103,31 +86,6 @@ EscCar:         PUSH    R1
                 POP     R1
                 RETN    2
 
-; EscString: Rotina que efectua a escrita de uma cadeia de caracter, terminada
-;          pelo caracter FIM_TEXTO.
-;               Entradas: R2 - apontador para o inicio da cadeia de caracteres
-;               Saidas: ---
-;               Efeitos: ---
-
-EscString:      PUSH    R1
-                PUSH    R2
-                PUSH	R3
-                MOV 	R2, M[SP+6]
-                MOV 	R3, M[SP+5]
-CicloEscStr:    MOV     R1, M[R2] 	;Carater de uma cadeia
-                CMP     R1, FIM_TEXTO
-                BR.Z    FimEscStr
-                PUSH 	R3 		;posicao de escrita
-                PUSH    R1 		;carater a ser escrito
-                CALL    EscCar
-                INC     R2
-                INC 	R3
-                BR      CicloEscStr
-FimEscStr:      POP     R3
-                POP     R2
-                POP 	R1
-                RETN 	2
-
 ;  EscreveNave:	Evoca a rotina EscCar para escrever a nave na janela de texto
 ;			Entradas: pilha - posicao do canhao
 ; 			Saidas: ---
@@ -135,19 +93,19 @@ FimEscStr:      POP     R3
 EscreveNave:    PUSH	R1
                 MOV	R1, M[SP+3]
                 PUSH    R1
-                PUSH	NAVECAR1
+                PUSH	'>'
                 CALL	EscCar
                 SUB	R1,1
                 PUSH    R1
-		PUSH	NAVECAR2
+		PUSH	')'
 		CALL	EscCar
 		SUB	R1,0100h
                 PUSH    R1
-		PUSH	NAVECAR3
+		PUSH	'\'
 		CALL	EscCar
 		ADD	R1,0200H
                 PUSH    R1
-		PUSH	NAVECAR4
+		PUSH	'/'
 		CALL	EscCar
 		POP	R1
                 RETN	1
@@ -170,7 +128,7 @@ ApagaNave:	PUSH	R1
                 PUSH    R1
 		PUSH	ESPACO
 		CALL	EscCar
-		ADD	R1,0200h
+		ADD	R1,0200H
                 PUSH    R1
 		PUSH	ESPACO
 		CALL	EscCar
@@ -211,7 +169,7 @@ Nave:		CMP     M[Int0],R0
 
 ;  MoveNave: Apaga a nave, verifica se a proxima posicao da nave coincide com
 ;            limite e, se sim, volta a escrever na posicao anterior.
-;            Se nao, evoca a rotina EscreveNave para escrever a nave
+;            Se nao, evoca a rotina EscreveNave para escrever a nave 
 ;            na nova posicao.
 ;            Entradas: pilha - coordenada no inicio e do limite para
 ;            onde escrever o limite
@@ -240,26 +198,14 @@ ChocaEsquerda:  MOV     R3,R0
 ChocaDireita:   MOV     R3,R0
                 MVBL    R3,R1
                 CMP     R3, 004Fh           ;Choca com o limite da direita?
-                BR.N	DentroMapa
+                BR.NP   DentroMapa
                 SUB     R1, M[Canhao_int]
 DentroMapa:     PUSH    R1
                 CALL    EscreveNave
                 MOV     M[Canhao_pos], R1
-		;MOV     M[LCD_WRITE], R1
                 POP     R1
                 POP     R3
                 RET
-
-EsperaIni:	CMP 	M[IntE], R0
-		BR.Z 	EsperaIni
-ApagaIni:	PUSH 	EspacoVar1
-		PUSH 	pos_VarText1
-		CALL 	EscString
-
-		PUSH 	EspacoVar2
-		PUSH 	pos_VarText2
-		CALL 	EscString
-		RET
 
 ;  ZONA IV.IV ROTINAS DE LIMITES -----------------------------------------------
 ;  EscreveLimites: Evoca a rotina EscreveLimite e da lhe parametros atraves da
@@ -275,10 +221,8 @@ EscreveLimites:	PUSH    sup_esquerdo
 		CALL    EscreveLimite
 		RET
 
-
-
 ;  ZONA IV.V ROTINA PRINCIPAL --------------------------------------------------
-;Programa que desenha um mapa de jogo e uma nave permitindo o seu deslocamento
+;Programa que desenha um mapa de jogo e uma nave permitindo o seu deslocamento 
 ;em resposta a butoes, estando limitado pelas dimensoes mapa
 Inicio:         MOV     R7, SP_INICIAL
                 MOV     SP, R7
@@ -287,22 +231,10 @@ Inicio:         MOV     R7, SP_INICIAL
                 MOV     R1, FFFFh
                 MOV     M[FFFCh], R1
 		ENI
-
-		PUSH	VarTexto1
-		PUSH	pos_VarText1
-		CALL 	EscString
-
-		PUSH 	VarTexto2
-		PUSH 	pos_VarText2
-		CALL 	EscString
-
-		CALL	EsperaIni
-
 		CALL    EscreveLimites
 		MOV	R1, pos_canhao_i
 		MOV	M[Canhao_pos], R1
-		PUSH    M[Canhao_pos]
+                PUSH    M[Canhao_pos]
 		CALL	EscreveNave
 		CALL	Nave
-
 Fim:	        BR      Fim
