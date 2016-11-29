@@ -10,59 +10,78 @@
 	NAVECAR2                         0029         CONSTANT
 	NAVECAR3                         005C         CONSTANT
 	NAVECAR4                         002F         CONSTANT
-	IO_READ                          FFFF         CONSTANT
-	IO_WRITE                         FFFE         CONSTANT
-	IO_STATUS                        FFFD         CONSTANT
-	IO_CONTROLO                      FFFC         CONSTANT
-	LCD_WRITE                        FFF5         CONSTANT
+	BALA                             002D         CONSTANT
+	INT_MASK                         C01F         CONSTANT
 	SP_INICIAL                       F0FF         CONSTANT
+	LCD_WRITE                        FFF5         CONSTANT
+	TEMP_DURACAO                     FFF6         CONSTANT
+	TEMP_CONTROLO                    FFF7         CONSTANT
 	INT_MASK_ADDR                    FFFA         CONSTANT
-	INT_MASK                         400F         CONSTANT
+	IO_CONTROLO                      FFFC         CONSTANT
+	IO_STATUS                        FFFD         CONSTANT
+	IO_WRITE                         FFFE         CONSTANT
+	IO_READ                          FFFF         CONSTANT
 	sup_esquerdo                     0000         CONSTANT
 	sup_direito                      004E         CONSTANT
 	inf_esquerdo                     1700         CONSTANT
 	inf_direito                      174E         CONSTANT
-	pos_canhao_i                     0402         CONSTANT
+	pos_canhao_i                     0401         CONSTANT
 	pos_VarText1                     0B23         CONSTANT
 	pos_VarText2                     0D20         CONSTANT
-	Int0                             8000         VARIABLE
-	Int1                             8001         VARIABLE
-	Int2                             8002         VARIABLE
-	Int3                             8003         VARIABLE
-	IntE                             8004         VARIABLE
-	Canhao_pos                       8005         VARIABLE
-	Canhao_int                       8006         VARIABLE
+	IntNav                           8000         VARIABLE
+	IntTiro                          8001         VARIABLE
+	IntE                             8002         VARIABLE
+	IntTemp                          8003         VARIABLE
+	Canhao_pos                       8004         VARIABLE
+	Canhao_int                       8005         VARIABLE
+	NoTiros                          8006         VARIABLE
 	VarTexto1                        8007           STRING
 	VarTexto2                        8012           STRING
 	EspacoVar1                       8023           STRING
 	EspacoVar2                       802E           STRING
+	Tiro                             803F            TABLE
 	INT_0                            FE00         VARIABLE
 	INT_1                            FE01         VARIABLE
 	INT_2                            FE02         VARIABLE
 	INT_3                            FE03         VARIABLE
+	INT_4                            FE04         VARIABLE
 	INT_E                            FE0E         VARIABLE
+	INT_F                            FE0F         VARIABLE
 	Descer                           0002            LABEL
 	Subir                            0009            LABEL
 	Esquerda                         0011            LABEL
 	Direita                          0019            LABEL
-	Comecar                          0020            LABEL
-	EscCar                           0023            LABEL
-	EscString                        0030            LABEL
-	CicloEscStr                      0037            LABEL
-	FimEscStr                        0042            LABEL
-	EscreveNave                      0046            LABEL
-	ApagaNave                        0065            LABEL
-	EscreveLimite                    0084            LABEL
-	CicloLim                         0087            LABEL
-	FimEscLim                        0091            LABEL
-	Nave                             0093            LABEL
-	MoveNave                         00A4            LABEL
-	ChocaInferior                    00B9            LABEL
-	ChocaEsquerda                    00BE            LABEL
-	ChocaDireita                     00C5            LABEL
-	DentroMapa                       00CC            LABEL
-	EsperaIni                        00D6            LABEL
-	ApagaIni                         00D9            LABEL
-	EscreveLimites                   00E6            LABEL
-	Inicio                           00F3            LABEL
-	Fim                              0119            LABEL
+	Disparar                         0020            LABEL
+	Comecar                          0023            LABEL
+	Temporizar                       0026            LABEL
+	EscCar                           0029            LABEL
+	EscString                        0036            LABEL
+	CicloEscStr                      003D            LABEL
+	FimEscStr                        0048            LABEL
+	EscreveNave                      004C            LABEL
+	ApagaNave                        006B            LABEL
+	EscreveLimite                    008A            LABEL
+	CicloLim                         008D            LABEL
+	FimEscLim                        0097            LABEL
+	Nave                             0099            LABEL
+	ChocaInferior                    00A8            LABEL
+	ChocaEsquerda                    00AD            LABEL
+	ChocaDireita                     00B4            LABEL
+	DentroMapa                       00BB            LABEL
+	EsperaIni                        00C3            LABEL
+	ApagaIni                         00C6            LABEL
+	CriaTiro                         00D3            LABEL
+	TestaMemCTiro                    00E0            LABEL
+	GuardaTiro                       00E4            LABEL
+	SaiDoCTiros                      00E9            LABEL
+	Tiros                            00EC            LABEL
+	HaveraTiros                      00F5            LABEL
+	TestaMemTiro                     00F7            LABEL
+	MoveTiro                         00FB            LABEL
+	SaiDosTiros                      0109            LABEL
+	Chamar_Temp                      010D            LABEL
+	Temporizador                     0118            LABEL
+	EscreveLimites                   011F            LABEL
+	Inicio                           012C            LABEL
+	Jogo                             0154            LABEL
+	Fim                              0161            LABEL
