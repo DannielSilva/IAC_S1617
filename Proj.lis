@@ -11,6 +11,7 @@
 	NAVECAR3                         005C         CONSTANT
 	NAVECAR4                         002F         CONSTANT
 	BALA                             002D         CONSTANT
+	NOMAX                            0032         CONSTANT
 	INT_MASK                         C01F         CONSTANT
 	INT_MASK2                        7FFF         CONSTANT
 	SP_INICIAL                       F0FF         CONSTANT
@@ -88,6 +89,7 @@
 	CicloLim                         00DF            LABEL
 	FimEscLim                        00E9            LABEL
 	Nave                             00EB            LABEL
+	ChocaSuperior                    00F4            LABEL
 	ChocaInferior                    00F7            LABEL
 	ChocaEsquerda                    00FA            LABEL
 	ChocaDireita                     00FF            LABEL
@@ -101,11 +103,15 @@
 	HaveraTiros                      0132            LABEL
 	TestaMemTiro                     0134            LABEL
 	MoveTiro                         0138            LABEL
-	SaiDosTiros                      0146            LABEL
-	Chamar_Temp                      014B            LABEL
-	Temporizador                     0156            LABEL
-	EscreveLimites                   015D            LABEL
-	Inicio                           016A            LABEL
-	Jogo                             0188            LABEL
-	Final                            0195            LABEL
-	Fim                              019F            LABEL
+	SaiDosTiros                      0144            LABEL
+	VeriColisoes                     0149            LABEL
+	EscreveObjecto                   015B            LABEL
+	SaiDasColisoes                   0165            LABEL
+	ApagaTiro                        016B            LABEL
+	Chamar_Temp                      0174            LABEL
+	Temporizador                     017F            LABEL
+	EscreveLimites                   0186            LABEL
+	Inicio                           0193            LABEL
+	Jogo                             01B1            LABEL
+	Final                            01BE            LABEL
+	Fim                              01C8            LABEL

@@ -10,6 +10,7 @@ NAVECAR2			EQU		')'
 NAVECAR3			EQU		'\'
 NAVECAR4			EQU		'/'
 BALA				EQU		'-'
+NOMAX				EQU		50
 INT_MASK			EQU		1100000000011111b
 INT_MASK2 			EQU 		0111111111111111b
 SP_INICIAL			EQU		F0FFh
@@ -50,7 +51,7 @@ VarTextFim			STR 		'Fim do Jogo', FIM_TEXTO
 EspacoTxtF			STR		'           ', FIM_TEXTO
 VarTextPonts 			STR 		'Pontuacao: ', FIM_TEXTO
 EspacoTxtP 			STR 		'           ', FIM_TEXTO
-Tiro				TAB		5
+Tiro				TAB		NOMAX
 
 ; ZONA III:  INTERRUPCOES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 				ORIG		FE00h
@@ -302,7 +303,7 @@ Nave:				PUSH		R1
 				DEC		M[IntNav]			;Reinicia a flag do mov da nave
 				MOV		R1, M[Canhao_pos]
 				ADD		R1, M[Canhao_int]		;Mete em R1 a posi nova da nave
-				CMP		R1, 0200h			;Choca com o limite superior?
+ChocaSuperior:			CMP		R1, 0200h			;Choca com o limite superior?
 				BR.NP		FimNave
 ChocaInferior:			CMP		R1, 1600h			;Choca com o limite inferior?
 				BR.NN		FimNave
@@ -310,7 +311,7 @@ ChocaEsquerda:			MOV		R3, R0
 				MVBL		R3, R1
 				CMP		R3, 0000h			;Choca com o limite da esquerda?
 				BR.NP		FimNave
-ChocaDireita:			MOV		R3, R0
+ChocaDireita:			MOV		R3, R0				;SERAO ESTAS LINHAS OPCIOONAIS AAOMSAOMAIOSA
 				MVBL		R3, R1
 				CMP		R3, 004Fh			;Choca com o limite da direita?
 				BR.NN		FimNave
@@ -334,7 +335,7 @@ FimNave:			ENI
 CriaTiro:			PUSH		R1
 				PUSH		R2
 				DEC		M[IntTiro]			;Reinicia a flag dos tiros
-				MOV		R1, 5
+				MOV		R1, NOMAX
 				CMP		M[NoTiros], R1			;Numero max de tiros foi atingido?
 				BR.Z		SaiDoCTiros			;Se sim, nao cria nada,sai do ciclo
 				INC		M[NoTiros]			;Adiciona novo tiro
@@ -369,13 +370,11 @@ MoveTiro:			DEC		R4				;Diminui o n de tiros a verificar
 				MOV		R3, M[R2]
 				ADD		R3, R1				;Calcula a nova posicao
 
-				
-				PUSH		M[R2]				;Apagar o tiro do ecra
-				PUSH		ESPACO
-				CALL		EscCar
-				PUSH		M[R2]				;Escrever na posicao a seguir
-				PUSH		BALA
-				CALL		EscCar
+				PUSH		M[R2]				;Manda a posicao inicial
+				PUSH		R3				;Manda a posicao seguinte
+				PUSH		R2				;Manda o endereco de memoria
+				PUSH		BALA				;Manda o caracter
+				CALL		VeriColisoes
 				INC		R2
 				BR		HaveraTiros			;Repete para a proxima posi de mem
 SaiDosTiros:			POP		R4
@@ -383,6 +382,44 @@ SaiDosTiros:			POP		R4
 				POP		R2
 				POP		R1
 				RET
+
+
+;Vericolisoes Recebe como argumentos a posicao inicial, a proxima posicao e o tipo de caracter
+VeriColisoes:			PUSH		R1
+				PUSH		R2
+				PUSH		R3
+				PUSH		R4
+				PUSH		R5
+				MOV		R1, M[SP+000ah]			;Recebe a posicao inicial
+				MOV		R2, M[SP+9]			;Recebe a posicao seguinte
+				MOV		R3, M[SP+8]			;Recebe o endereco de memoria
+				MOV		R4, M[SP+7]			;Recebe o caracter
+				MOV		R5, R0
+				MVBL		R5, R2
+				;CMP		R5, 0000h			;Choca com o limite da esquerda?
+				;BR.NP		ApagaAsteroide
+				CMP		R5, 004Fh			;Choca com o limite da direita?
+				BR.NN		ApagaTiro			;Se chocar e porque e tiro
+EscreveObjecto:			PUSH		R1				;Apagar o tiro do ecra
+				PUSH		ESPACO
+				CALL		EscCar
+				PUSH		R2				;Escrever na posicao a seguir
+				PUSH		R4
+				CALL		EscCar
+				MOV		M[R3], R2
+SaiDasColisoes:			POP		R5
+				POP		R4
+				POP		R3
+				POP		R2
+				POP		R1
+				RETN		4
+
+ApagaTiro:			PUSH		R1				;Apaga o tiro do ecra
+				PUSH		ESPACO
+				CALL		EscCar
+				MOV		M[R3], R0			;Apaga o tiro da memoria
+				DEC		M[NoTiros]			;Diminui o numero de tiros usados
+				BR		SaiDasColisoes
 
 ;_|_|_|_|_|  _|_|_|_|  _|      _|  _|_|_|      _|_|    _|_|_|    _|_|_|
 ;    _|      _|        _|_|  _|_|  _|    _|  _|    _|  _|    _|    _|
