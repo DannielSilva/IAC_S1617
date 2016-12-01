@@ -11,7 +11,12 @@
 	NAVECAR3                         005C         CONSTANT
 	NAVECAR4                         002F         CONSTANT
 	BALA                             002D         CONSTANT
-	NOMAX                            0032         CONSTANT
+	ASTERISCO                        002A         CONSTANT
+	BNEGRO                           006F         CONSTANT
+	NOMAXTIROS                       0032         CONSTANT
+	NOMAXOBST                        0010         CONSTANT
+	PERIODAST                        0005         CONSTANT
+	PERIODBUR                        0003         CONSTANT
 	INT_MASK                         C01F         CONSTANT
 	INT_MASK2                        7FFF         CONSTANT
 	SP_INICIAL                       F0FF         CONSTANT
@@ -40,15 +45,22 @@
 	Canhao_pos                       8005         VARIABLE
 	Canhao_int                       8006         VARIABLE
 	NoTiros                          8007         VARIABLE
-	VarTexto1                        8008           STRING
-	EspacoVar1                       8013           STRING
-	VarTexto2                        801E           STRING
-	EspacoVar2                       802F           STRING
-	VarTextFim                       8040           STRING
-	EspacoTxtF                       804C           STRING
-	VarTextPonts                     8058           STRING
-	EspacoTxtP                       8064           STRING
-	Tiro                             8070            TABLE
+	NoObstaculos                     8008         VARIABLE
+	RandomNumb                       8009         VARIABLE
+	PosUltAst                        800A         VARIABLE
+	ContaBuracoN                     800B         VARIABLE
+	ContadorTemp                     800C         VARIABLE
+	VarTexto1                        800D           STRING
+	EspacoVar1                       8018           STRING
+	VarTexto2                        8023           STRING
+	EspacoVar2                       8034           STRING
+	VarTextFim                       8045           STRING
+	EspacoTxtF                       8051           STRING
+	VarTextPonts                     805D           STRING
+	EspacoTxtP                       8069           STRING
+	Tiro                             8075            TABLE
+	Obstaculo                        80A7            TABLE
+	CarObstaculo                     80B7            TABLE
 	INT_0                            FE00         VARIABLE
 	INT_1                            FE01         VARIABLE
 	INT_2                            FE02         VARIABLE
@@ -82,36 +94,67 @@
 	EscreveMsgIni                    008D            LABEL
 	EscreveMsgFin                    009A            LABEL
 	EsperaInicio                     00A7            LABEL
-	ApagaInicio                      00AB            LABEL
-	EsperaFim                        00BA            LABEL
-	ApagaFim                         00C7            LABEL
-	EscreveLimite                    00DC            LABEL
-	CicloLim                         00DF            LABEL
-	FimEscLim                        00E9            LABEL
-	Nave                             00EB            LABEL
-	ChocaSuperior                    00F4            LABEL
-	ChocaInferior                    00F7            LABEL
-	ChocaEsquerda                    00FA            LABEL
-	ChocaDireita                     00FF            LABEL
-	DentroMapa                       0104            LABEL
-	FimNave                          010B            LABEL
-	CriaTiro                         010F            LABEL
-	TestaMemCTiro                    011C            LABEL
-	GuardaTiro                       0120            LABEL
-	SaiDoCTiros                      0125            LABEL
-	Tiros                            0128            LABEL
-	HaveraTiros                      0132            LABEL
-	TestaMemTiro                     0134            LABEL
-	MoveTiro                         0138            LABEL
-	SaiDosTiros                      0144            LABEL
-	VeriColisoes                     0149            LABEL
-	EscreveObjecto                   015B            LABEL
-	SaiDasColisoes                   0165            LABEL
-	ApagaTiro                        016B            LABEL
-	Chamar_Temp                      0174            LABEL
-	Temporizador                     017F            LABEL
-	EscreveLimites                   0186            LABEL
-	Inicio                           0193            LABEL
-	Jogo                             01B1            LABEL
-	Final                            01BE            LABEL
-	Fim                              01C8            LABEL
+	ApagaInicio                      00AD            LABEL
+	EsperaFim                        00BC            LABEL
+	ApagaFim                         00C9            LABEL
+	EscreveLimite                    00DE            LABEL
+	CicloLim                         00E1            LABEL
+	FimEscLim                        00EB            LABEL
+	Nave                             00ED            LABEL
+	ChocaSuperior                    00F6            LABEL
+	ChocaInferior                    00F9            LABEL
+	ChocaEsquerda                    00FC            LABEL
+	ChocaDireita                     0101            LABEL
+	DentroMapa                       0106            LABEL
+	FimNave                          010D            LABEL
+	Asteroides                       0111            LABEL
+	HaveraAsts                       0120            LABEL
+	TestaMemAsts                     0122            LABEL
+	MoveAsteroide                    0127            LABEL
+	SaiDosAsts                       0133            LABEL
+	GeraObstaculos                   0139            LABEL
+	GeraAstTrue                      014A            LABEL
+	GeraAstFalse                     014F            LABEL
+	ContGeraAst                      0153            LABEL
+	FimGeraAst                       0155            LABEL
+	CriaObstaculo                    0158            LABEL
+	TestaMemCObst                    0169            LABEL
+	GuardaObst                       016E            LABEL
+	SaiDosCObst                      0177            LABEL
+	CriaTiro                         017C            LABEL
+	TestaMemCTiro                    0189            LABEL
+	GuardaTiro                       018D            LABEL
+	SaiDoCTiros                      0192            LABEL
+	Tiros                            0195            LABEL
+	HaveraTiros                      019F            LABEL
+	TestaMemTiro                     01A1            LABEL
+	MoveTiro                         01A5            LABEL
+	SaiDosTiros                      01B1            LABEL
+	VeriColisoes                     01B6            LABEL
+	ColLimEsq                        01CE            LABEL
+	ColBala                          01D7            LABEL
+	EscreveObjecto                   01E7            LABEL
+	SaiDasColisoes                   01F1            LABEL
+	ColTiroObs                       01F7            LABEL
+	ColTirosObsFim                   0204            LABEL
+	ApagaTiro                        020A            LABEL
+	ApagaObstaculo                   021B            LABEL
+	HaAlgoLa                         0234            LABEL
+	HaveraAlgo                       023D            LABEL
+	TestaMemAlgo                     023F            LABEL
+	TestaAlgo                        0243            LABEL
+	EncontreiOAlgo                   0249            LABEL
+	SaiDoHaAlgo                      024B            LABEL
+	Chamar_Temp                      024F            LABEL
+	Temporizador                     025A            LABEL
+	TempAstFalse                     0263            LABEL
+	TempAstTrue                      0266            LABEL
+	SaiDoTemp                        026A            LABEL
+	EscreveLimites                   026B            LABEL
+	Inicio                           0278            LABEL
+	Jogo                             0296            LABEL
+	PseudoRndm                       02A3            LABEL
+	PseudoElse                       02B3            LABEL
+	FimPseudo                        02B6            LABEL
+	Final                            02C0            LABEL
+	Fim                              02CA            LABEL

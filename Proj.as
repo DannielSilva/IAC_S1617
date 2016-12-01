@@ -1,6 +1,6 @@
-;									~~~
-;			<<< Joao Daniel Silva 86445, Francisco Sousa, 86416 >>>
-;									~~~
+;					~~~
+;	<<< Joao Daniel Silva 86445, Francisco Sousa, 86416 >>>
+;					~~~
 ; ZONA I:  CONSTANTES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 FIM_TEXTO			EQU		'@'
 LIMITE				EQU		'#'
@@ -10,7 +10,12 @@ NAVECAR2			EQU		')'
 NAVECAR3			EQU		'\'
 NAVECAR4			EQU		'/'
 BALA				EQU		'-'
-NOMAX				EQU		50
+ASTERISCO			EQU 		'*'
+BNEGRO 				EQU 		'o'
+NOMAXTIROS			EQU		50
+NOMAXOBST			EQU		0010h				;16
+PERIODAST			EQU		5
+PERIODBUR			EQU		3
 INT_MASK			EQU		1100000000011111b
 INT_MASK2 			EQU 		0111111111111111b
 SP_INICIAL			EQU		F0FFh
@@ -35,7 +40,7 @@ pos_TextPonts 			EQU 		0D23h   			;(14a linha, 35a coluna)
 ; ZONA II:  VARIAVEIS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 				ORIG		8000h
-IntNav				WORD		1
+IntNav				WORD		0
 IntTiro				WORD		0
 IntE				WORD		0
 IntTemp				WORD		0
@@ -43,6 +48,11 @@ Flag_Reset 			WORD 		0
 Canhao_pos			WORD		0
 Canhao_int			WORD		0
 NoTiros				WORD		0
+NoObstaculos			WORD 		0
+RandomNumb 			WORD 		0
+PosUltAst 			WORD  		0
+ContaBuracoN 			WORD 		0
+ContadorTemp			WORD 		0
 VarTexto1			STR		'Prepare-se', FIM_TEXTO
 EspacoVar1			STR		'          ', FIM_TEXTO
 VarTexto2			STR		'Prima o botao IE', FIM_TEXTO
@@ -51,7 +61,9 @@ VarTextFim			STR 		'Fim do Jogo', FIM_TEXTO
 EspacoTxtF			STR		'           ', FIM_TEXTO
 VarTextPonts 			STR 		'Pontuacao: ', FIM_TEXTO
 EspacoTxtP 			STR 		'           ', FIM_TEXTO
-Tiro				TAB		NOMAX
+Tiro				TAB		NOMAXTIROS			;tabela com as posicoes dos tiros
+Obstaculo			TAB 		NOMAXOBST			;tabela com as posicoes dos obstaculos
+CarObstaculo 			TAB 		NOMAXOBST 			;tabela com os carateres dos obstaculos
 
 ; ZONA III:  INTERRUPCOES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 				ORIG		FE00h
@@ -174,15 +186,15 @@ EscreveNave:			PUSH		R1
 				PUSH		R1
 				PUSH		NAVECAR1
 				CALL		EscCar
-				SUB		R1,1
+				SUB		R1, 1
 				PUSH		R1
 				PUSH		NAVECAR2
 				CALL		EscCar
-				SUB		R1,0100h
+				SUB		R1, 0100h
 				PUSH		R1
 				PUSH		NAVECAR3
 				CALL		EscCar
-				ADD		R1,0200H
+				ADD		R1, 0200h
 				PUSH		R1
 				PUSH		NAVECAR4
 				CALL		EscCar
@@ -233,6 +245,7 @@ EscreveMsgFin:			PUSH		VarTextFim			;Escrever a mensagem final
 
 EsperaInicio:			CMP		M[IntE], R0
 				BR.NZ		ApagaInicio
+				INC 		M[RandomNumb]
 				BR		EsperaInicio
 
 ApagaInicio:			DEC 		M[IntE]
@@ -321,10 +334,111 @@ DentroMapa:			PUSH		R1				;Esta dentro, pode escrever nave
 				MOV		M[Canhao_pos], R1
 				;MOV		M[LCD_WRITE], R1
 FimNave:			ENI
-				POP		R1
 				POP		R3
+				POP		R1
 				RET
 
+;          :::      :::::::: ::::::::::: :::::::::: :::::::::   :::::::: ::::::::::: :::::::::  :::::::::: ::::::::
+;       :+: :+:   :+:    :+:    :+:     :+:        :+:    :+: :+:    :+:    :+:     :+:    :+: :+:       :+:    :+:
+;     +:+   +:+  +:+           +:+     +:+        +:+    +:+ +:+    +:+    +:+     +:+    +:+ +:+       +:+
+;   +#++:++#++: +#++:++#++    +#+     +#++:++#   +#++:++#:  +#+    +:+    +#+     +#+    +:+ +#++:++#  +#++:++#++
+;  +#+     +#+        +#+    +#+     +#+        +#+    +#+ +#+    +#+    +#+     +#+    +#+ +#+              +#+
+; #+#     #+# #+#    #+#    #+#     #+#        #+#    #+# #+#    #+#    #+#     #+#    #+# #+#       #+#    #+#
+;###     ###  ########     ###     ########## ###    ###  ######## ########### #########  ########## ########
+
+;Asteroides
+Asteroides:			PUSH		R1
+				PUSH		R2
+				PUSH		R3
+				PUSH		R4
+				PUSH		R5
+				CALL 		GeraObstaculos			;Gera ou nao obstaculos
+				MOV		R1, 0001h
+				MOV		R2, Obstaculo			;Em R2 mete a posi de mem do 1o obstaculos
+				MOV		R5, CarObstaculo		;Em R5 a posi de mem do car do 1o obstaculo
+				MOV		R4, M[NoObstaculos]		;Em R4 mete o n de obstaculos a verificar
+HaveraAsts:			CMP		R4, R0				;Todos os obstaculos verificados?
+				BR.Z		SaiDosAsts			;Se sim, nao move nada
+
+TestaMemAsts:			CMP		M[R2], R0			;Testa se ha obstaculos na posicao R2
+				BR.NZ		MoveAsteroide			;Se houver, usa essa posicao
+				INC		R2				;Se nao, verifica na proxima
+				INC		R5				;A posi de mem do car acompanha
+				BR		TestaMemAsts
+MoveAsteroide:			DEC		R4				;Diminui o n de obstaculos a verificar
+				MOV		R3, M[R2]			;Escreve em R3 a posicao do obstaculo
+				SUB		R3, R1				;Calcula a nova posicao
+				PUSH		M[R2]				;Manda a posicao inicial
+				PUSH		R3				;Manda a posicao seguinte
+				PUSH		R2				;Manda o endereco de memoria
+				PUSH		M[R5]				;Manda o caracter
+				CALL		VeriColisoes			;Verifica colisoes e move ou nao
+				INC		R2				;Aumenta a posi de mem a verificar
+				INC		R5				;A posi de mem dos caracteres acompanha
+				BR		HaveraAsts			;Repete para a proxima posi de mem
+SaiDosAsts:			POP 		R5
+				POP		R4
+				POP		R3
+				POP		R2
+				POP		R1
+				RET
+
+
+
+
+;GeraObstaculos
+GeraObstaculos: 		PUSH		R1
+				PUSH		R2
+				INC 		M[PosUltAst]
+				MOV		R1, PERIODAST
+				CMP 		M[PosUltAst], R1		;Ve se ja passaram 5 posis
+				BR.NZ		FimGeraAst			;Se nao, sai
+				MOV  		M[PosUltAst],R0			;Se sim, reinicia contador
+				MOV		R1, PERIODBUR
+				MOV		R2, M[ContaBuracoN]
+				CMP 		R2, R1				;Ja passaram 3 asteroides?
+				BR.NZ 		GeraAstFalse			;Se nao, salta para false
+GeraAstTrue:			MOV		M[ContaBuracoN], R0		;Se sim, reinicia o contador do buraco negro
+				PUSH 		BNEGRO				;Manda buraco negro e cria obstaculo
+				BR 		ContGeraAst
+GeraAstFalse:			INC 		M[ContaBuracoN]			;Se nao: incrementa o contador para criar o buraco negro
+				PUSH		ASTERISCO			;Manda asteroide e cria obstaculo
+ContGeraAst:			CALL 		CriaObstaculo
+FimGeraAst:			POP		R2
+				POP		R1
+				RET
+
+
+
+;CriaObstaculo
+CriaObstaculo: 			PUSH 		R1
+				PUSH 		R2
+				PUSH 		R3
+				PUSH 		R4
+				MOV 		R4, M[SP+6]			;Em R4 mete o caracter
+				MOV 		R1, NOMAXOBST
+				CMP 		M[NoObstaculos], R1		;Numero max de obst atingido?
+				BR.Z 		SaiDosCObst			;Se sim, sai do ciclo
+				INC 		M[NoObstaculos]			;Se nao, adiciona novo obstaculo
+				MOV 		R2, Obstaculo			;Em R2 a posi de memoria do 1o obst
+				MOV 		R3, CarObstaculo		;Em R3 a posi de mem do caracter do 1o obst
+TestaMemCObst: 			CMP 		M[R2], R0			;Ja ha algum tiro nesta posi?
+				BR.Z 		GuardaObst			;Se nao, guarda nessa posi (salto)
+				INC 		R2				;Se houver, verifica na proxima
+				INC 		R3
+				BR		TestaMemCObst
+GuardaObst: 			PUSH		R0
+				CALL 		PseudoRndm			;Se nao: gera numero random
+				POP		R1				;Em R5 o numero random
+				SHL		R1, 8
+				ADD		R1, 024Eh
+				MOV 		M[R2], R1			;A posicao do obstaculo eh o numero random
+				MOV 		M[R3], R4			;Mete o tipo de obstaculo na memoria
+SaiDosCObst:			POP 		R4
+				POP 		R3
+				POP 		R2
+				POP 		R1
+				RETN 		1
 
 ; _|_|_|_|_|  _|_|_|  _|_|_|      _|_|      _|_|_|
 ;     _|        _|    _|    _|  _|    _|  _|
@@ -332,25 +446,27 @@ FimNave:			ENI
 ;     _|        _|    _|    _|  _|    _|        _|
 ;     _|      _|_|_|  _|    _|    _|_|    _|_|_|
 
+;CriaTiro
 CriaTiro:			PUSH		R1
 				PUSH		R2
 				DEC		M[IntTiro]			;Reinicia a flag dos tiros
-				MOV		R1, NOMAX
+				MOV		R1, NOMAXTIROS
 				CMP		M[NoTiros], R1			;Numero max de tiros foi atingido?
 				BR.Z		SaiDoCTiros			;Se sim, nao cria nada,sai do ciclo
 				INC		M[NoTiros]			;Adiciona novo tiro
 				MOV		R2, Tiro			;Em R2 mete a posi de mem do 1o tiro
-TestaMemCTiro:			CMP		M[R2], R0			;Testa se ja ha algum tiro ai
+TestaMemCTiro:			CMP		M[R2], R0			;Ja ha algum tiro nessa posi
 				BR.Z		GuardaTiro			;Se nao, guarda nessa posi
 				INC		R2				;Se houver, verifica na proxima posi
 				BR		TestaMemCTiro
-GuardaTiro:			MOV 		R1, M[Canhao_pos]		;Tiro na posi a seguir ao canhao
+GuardaTiro:			MOV 		R1, M[Canhao_pos]		;Se nao: Tiro na posi a seguir ao canhao
 				ADD		R1, 0001h
 				MOV		M[R2], R1
 SaiDoCTiros:			POP		R2
 				POP		R1
 				RET
 
+;Tiros
 Tiros:				PUSH		R1
 				PUSH		R2
 				PUSH		R3
@@ -358,7 +474,7 @@ Tiros:				PUSH		R1
 				MOV		R1, 0001h
 				MOV		R2, Tiro			;Em R2 mete a posi de mem do 1o tiro
 				MOV		R4, M[NoTiros]			;Em R4 mete o n de tiros a verificar
-HaveraTiros:			CMP		R4, R0				;Todos os tiros verificados=
+HaveraTiros:			CMP		R4, R0				;Todos os tiros verificados?
 				BR.Z		SaiDosTiros			;Se sim, nao move nada
 
 TestaMemTiro:			CMP		M[R2], R0			;Testa se ha tiros na posicao R2
@@ -383,30 +499,56 @@ SaiDosTiros:			POP		R4
 				POP		R1
 				RET
 
-
+; e88~-_    ,88~-_   888     888 ,d88~~\   ,88~-_   888~~  ,d88~~\
+;d888   \  d888   \  888     888 8888     d888   \  888___ 8888
+;8888     88888    | 888     888 `Y88b   88888    | 888    `Y88b
+;8888     88888    | 888     888  `Y88b, 88888    | 888     `Y88b,
+;Y888   /  Y888   /  888     888    8888  Y888   /  888       8888
+; "88_-~    `88_-~   888____ 888 \__88P'   `88_-~   888___ \__88P'
 ;Vericolisoes Recebe como argumentos a posicao inicial, a proxima posicao e o tipo de caracter
 VeriColisoes:			PUSH		R1
 				PUSH		R2
 				PUSH		R3
 				PUSH		R4
 				PUSH		R5
-				MOV		R1, M[SP+000ah]			;Recebe a posicao inicial
-				MOV		R2, M[SP+9]			;Recebe a posicao seguinte
-				MOV		R3, M[SP+8]			;Recebe o endereco de memoria
-				MOV		R4, M[SP+7]			;Recebe o caracter
+				MOV		R1, M[SP+000Ah]			;Recebe a posicao inicial, em R1
+				MOV		R2, M[SP+9]			;Recebe a posicao seguinte, em R2
+				MOV		R3, M[SP+8]			;Recebe o endereco de memoria da posicao, em R3
+				MOV		R4, M[SP+7]			;Recebe o caracter, em R4
+				;PUSH		R2
+				;PUSH		R4
+				;CALL		EscCar
 				MOV		R5, R0
 				MVBL		R5, R2
-				;CMP		R5, 0000h			;Choca com o limite da esquerda?
-				;BR.NP		ApagaAsteroide
-				CMP		R5, 004Fh			;Choca com o limite da direita?
-				BR.NN		ApagaTiro			;Se chocar e porque e tiro
-EscreveObjecto:			PUSH		R1				;Apagar o tiro do ecra
+				CMP		R5, 0000h			;Choca com o limite da esquerda?
+				BR.P		ColLimEsq			;Se chocar eh porque eh obstaculo
+				PUSH		R1				;Posi ini
+				PUSH		R3				;Endereco mem
+				CALL		ApagaObstaculo
+				JMP		SaiDasColisoes
+ColLimEsq:			CMP		R5, 004Fh			;Choca com o limite da direita?
+				BR.N		ColBala				;Se chocar eh porque eh tiro
+				PUSH		R1
+				PUSH		R3
+				CALL		ApagaTiro
+				JMP		SaiDasColisoes
+ColBala:			CMP		R4, BALA
+				JMP.NZ		EscreveObjecto			;Se nao for um tiro
+				PUSH		R0				;Guarda espaco para o retorno
+				PUSH		Obstaculo			;Manda o endereco inicial da tabela a percorrer
+				PUSH		R2				;Manda a posicao a verificar
+				PUSH		M[NoObstaculos]			;Manda o no de obstaculos no ecra
+				CALL		HaAlgoLa
+				POP		R5				;Em R5, 0 se nao, ou um endereco de memoria do que colide
+				CMP		R5, R0
+				JMP.NZ		ColTiroObs
+EscreveObjecto:			PUSH		R1				;Apagar o objecto do ecra
 				PUSH		ESPACO
 				CALL		EscCar
 				PUSH		R2				;Escrever na posicao a seguir
 				PUSH		R4
 				CALL		EscCar
-				MOV		M[R3], R2
+				MOV		M[R3], R2			;Escreve a nova posicao na memoria
 SaiDasColisoes:			POP		R5
 				POP		R4
 				POP		R3
@@ -414,12 +556,75 @@ SaiDasColisoes:			POP		R5
 				POP		R1
 				RETN		4
 
-ApagaTiro:			PUSH		R1				;Apaga o tiro do ecra
+ColTiroObs:			MOV		R4, R5				;Em R4 o endereço de memoria do obstaculo
+				SUB		R5, Obstaculo
+				ADD		R5, CarObstaculo		;Em R5 o endereço de mem do caracter
+				MOV		R2, BNEGRO
+				CMP		M[R5], R2
+				BR.Z		ColTirosObsFim			;Se for buraco negro salta para o fim
+				PUSH		M[R4]				;Posi ini
+				PUSH		R4				;Endereco de mem
+				CALL		ApagaObstaculo
+ColTirosObsFim:			PUSH		R1				;Posi ini
+				PUSH		R3				;Endereco de mem
+				CALL		ApagaTiro
+				JMP		SaiDasColisoes
+
+
+ApagaTiro:			PUSH		R1				;Posi inicial
+				PUSH		R3				;Endereco de mem
+				MOV		R1, M[SP+5]
+				MOV		R3, M[SP+4]
+				PUSH		R1				;Apagar do ecra
 				PUSH		ESPACO
 				CALL		EscCar
-				MOV		M[R3], R0			;Apaga o tiro da memoria
-				DEC		M[NoTiros]			;Diminui o numero de tiros usados
-				BR		SaiDasColisoes
+				MOV		M[R3], R0			;Apagar da memoria
+				DEC		M[NoTiros]			;Decrementar o no de tiros no ecra
+				POP		R3
+				POP		R1
+				RETN		2
+
+ApagaObstaculo:			PUSH		R1				;Recebe posi inicial
+				PUSH		R3				;Recebe o endereco de memoria
+				PUSH		R5
+				MOV		R1, M[SP+6]
+				MOV		R3, M[SP+5]
+				PUSH		R1				;Apagar do ecra
+				PUSH		ESPACO
+				CALL		EscCar
+				MOV		M[R3], R0			;Apagar a posi da memoria
+				MOV		R5, R3				;Em R5 o endereco de memoria da posi
+				SUB		R5, Obstaculo			;Subtrair a origem da tabela para ficar so o intervalo
+				ADD		R5, CarObstaculo		;Adicionar a origem da tabela dos caracteres
+				MOV		M[R5], R0			;Apagar o caracter da memoria
+				DEC		M[NoObstaculos]			;Decrementar o numero de obstaculos no ecra
+				POP		R5
+				POP		R3
+				POP		R1
+				RETN		2
+
+HaAlgoLa:			PUSH		R1
+				PUSH		R2
+				PUSH		R3
+				MOV		R1, M[SP+7]			;Recebe o endereco inicial da tabela
+				MOV		R2, M[SP+6]			;Recebe a posicao a verificar
+				MOV		R3, M[SP+5]			;Recebe o no de enderecos ocupados
+HaveraAlgo:			CMP		R3, R0				;Todos os enderecos verificados?
+				BR.Z		SaiDoHaAlgo			;Se sim, sai
+TestaMemAlgo:			CMP		M[R1], R0			;Testa se o endereco esta vazio
+				BR.NZ		TestaAlgo			;Se nao estiver, usa esse endereco
+				INC		R1				;Se estiver, verifica o proximo
+				BR		TestaMemAlgo
+TestaAlgo:			DEC		R3				;Dec o no de posis ocupadas por verificar
+				CMP		M[R1], R2			;O que esta na posi eh a posicao?
+				JMP.Z		EncontreiOAlgo			;Se sim, salta
+				INC		R1				;Se nao, muda o endereco a verificar
+				BR		HaveraAlgo
+EncontreiOAlgo:			MOV		M[SP+8], R1
+SaiDoHaAlgo:			POP		R3
+				POP		R2
+				POP		R1
+				RETN		3
 
 ;_|_|_|_|_|  _|_|_|_|  _|      _|  _|_|_|      _|_|    _|_|_|    _|_|_|
 ;    _|      _|        _|_|  _|_|  _|    _|  _|    _|  _|    _|    _|
@@ -438,8 +643,20 @@ Chamar_Temp:			PUSH		R7
 Temporizador:			DEC		M[IntTemp]
 				CALL		Chamar_Temp
 				CALL		Tiros
-				RET
+				CMP 		M[ContadorTemp], R0		;Ja vai na 2a vez?
+				BR.NZ 		TempAstTrue			;Se sim, salta para o true
+TempAstFalse:			INC 		M[ContadorTemp]			;Se nao, aumenta a variavel e sai
+				BR 		SaiDoTemp
+TempAstTrue:			MOV 		M[ContadorTemp], R0		;Se sim: reinicia o contador
+				CALL 		Asteroides			;Corre asteroides
+SaiDoTemp:			RET
+
 ;  ZONA IV.IV ROTINAS DE LIMITES -----------------------------------------------
+;_|        _|_|_|  _|      _|  _|_|_|  _|_|_|_|_|  _|_|_|_|    _|_|_|
+;_|          _|    _|_|  _|_|    _|        _|      _|        _|
+;_|          _|    _|  _|  _|    _|        _|      _|_|_|      _|_|
+;_|          _|    _|      _|    _|        _|      _|              _|
+;_|_|_|_|  _|_|_|  _|      _|  _|_|_|      _|      _|_|_|_|  _|_|_|
 ;  EscreveLimites:	Evoca a rotina EscreveLimite e da lhe parametros atraves da
 ;					pilha para escrever os limites superior e inferior
 ;						Entradas: ---
@@ -495,7 +712,40 @@ Jogo:				CMP		M[IntNav], R0
 				CALL.NZ		Temporizador
 				BR		Jogo
 
-;  ZONA IV.V ROTINA FINAL ------------------------------------------------------
+;  ZONA IV.V ROTINA PSEUDO ALEATORIA --------------------------------------------
+;      :::::::::      :::     ::::    ::: :::::::::   ::::::::    :::   :::          ::::::::  :::::::::: ::::    ::: :::::::::: :::::::::      ::: ::::::::::: ::::::::  :::::::::          :::::::::   ::::::::   :::::::: ::::::::::: ::::::::::: ::::::::::: ::::::::  ::::    :::
+;     :+:    :+:   :+: :+:   :+:+:   :+: :+:    :+: :+:    :+:  :+:+: :+:+:        :+:    :+: :+:        :+:+:   :+: :+:        :+:    :+:   :+: :+:   :+:    :+:    :+: :+:    :+:         :+:    :+: :+:    :+: :+:    :+:    :+:         :+:         :+:    :+:    :+: :+:+:   :+:
+;    +:+    +:+  +:+   +:+  :+:+:+  +:+ +:+    +:+ +:+    +:+ +:+ +:+:+ +:+       +:+        +:+        :+:+:+  +:+ +:+        +:+    +:+  +:+   +:+  +:+    +:+    +:+ +:+    +:+         +:+    +:+ +:+    +:+ +:+           +:+         +:+         +:+    +:+    +:+ :+:+:+  +:+
+;   +#++:++#:  +#++:++#++: +#+ +:+ +#+ +#+    +:+ +#+    +:+ +#+  +:+  +#+       :#:        +#++:++#   +#+ +:+ +#+ +#++:++#   +#++:++#:  +#++:++#++: +#+    +#+    +:+ +#++:++#:          +#++:++#+  +#+    +:+ +#++:++#++    +#+         +#+         +#+    +#+    +:+ +#+ +:+ +#+
+;  +#+    +#+ +#+     +#+ +#+  +#+#+# +#+    +#+ +#+    +#+ +#+       +#+       +#+   +#+# +#+        +#+  +#+#+# +#+        +#+    +#+ +#+     +#+ +#+    +#+    +#+ +#+    +#+         +#+        +#+    +#+        +#+    +#+         +#+         +#+    +#+    +#+ +#+  +#+#+#
+; #+#    #+# #+#     #+# #+#   #+#+# #+#    #+# #+#    #+# #+#       #+#       #+#    #+# #+#        #+#   #+#+# #+#        #+#    #+# #+#     #+# #+#    #+#    #+# #+#    #+#         #+#        #+#    #+# #+#    #+#    #+#         #+#         #+#    #+#    #+# #+#   #+#+#
+;###    ### ###     ### ###    #### #########   ########  ###       ###        ########  ########## ###    #### ########## ###    ### ###     ### ###     ########  ###    ###         ###         ########   ######## ###########     ###     ########### ########  ###    ####
+PseudoRndm:  			PUSH  		R1
+				PUSH 		R2
+				PUSH 		R3
+				PUSH 		R4
+				MOV 		R1, 0001h			;R1 igual a 0000 0000 0000 0001b
+				MOV  		R2, M[RandomNumb]
+				MOV 		R4, 20				;24 linhas -2 duas dos limites -2
+
+				MOV 		R3, R2  			;adjacentes aos limites
+				AND 		R3, R1				;Armazena em R3 o bit de menor peso
+				CMP 		R3, R0
+				BR.NZ 		PseudoElse
+				ROR 		R2, 1
+				BR		FimPseudo
+PseudoElse:			XOR 		R2, INT_MASK
+				ROR 		R2, 1
+FimPseudo: 			MOV 		M[RandomNumb], R2
+				DIV 		R2, R4				;Guarda o resultado em R2 e o resto em R4
+				MOV		M[SP+6], R4
+				POP 		R4
+				POP 		R3
+				POP 		R2
+				POP 		R1
+				RET
+
+;  ZONA IV.VI ROTINA FINAL ------------------------------------------------------
 ; _|_|_|_|  _|_|_|  _|      _|
 ; _|          _|    _|_|  _|_|
 ; _|_|_|      _|    _|  _|  _|
