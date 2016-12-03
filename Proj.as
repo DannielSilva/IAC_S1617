@@ -12,16 +12,20 @@ NAVECAR4			EQU			'/'
 BALA				EQU			'-'
 ASTERISCO			EQU 			'*'
 BNEGRO 				EQU 			'o'
-NOMAXTIROS			EQU			50					;No maximo de tiros no ecra
+NOMAXTIROS			EQU			5					;No maximo de tiros no ecra
 NOMAXOBST			EQU			0010h				;16
 PERIODAST			EQU			5					;Periodicidade dos obstac/tempori
 PERIODBUR			EQU			3					;Periodicidade dos buracos/asteroides
+DURACAOLEDS			EQU			5				;Numero de ciclos do temp em que os leds estao acesos
 INT_MASK			EQU			1100000000011111b	;Mascara do jogo
 INT_MASK2 			EQU 			0111111111111111b	;Mascara do reinicio
 SP_INICIAL			EQU			F0FFh
+IO_DISPLAY      		EQU     		FFF0h
+LCD_CONTROL			EQU 			FFF4h
 LCD_WRITE			EQU			FFF5h
 TEMP_DURACAO			EQU			FFF6h
 TEMP_CONTROLO			EQU			FFF7h
+LEDS_CONTROLO			EQU			FFF8h
 INT_MASK_ADDR			EQU			FFFAh
 IO_CONTROLO			EQU			FFFCh
 IO_STATUS			EQU			FFFDh
@@ -47,12 +51,19 @@ IntTemp				WORD		0
 Flag_Reset 			WORD 		0
 Canhao_pos			WORD		0
 Canhao_int			WORD		0
+LedsAcesos			WORD		0
+LedsCount			WORD		0
 NoTiros				WORD		0
 NoObstaculos			WORD 		0
 RandomNumb 			WORD 		0
+Pontuacao 			WORD  		0
 PosUltAst 			WORD  		0
 ContaBuracoN 			WORD 		0
 ContadorTemp			WORD 		0
+Tiro				TAB		NOMAXTIROS			;tabela com as posicoes dos tiros
+Obstaculo			TAB 		NOMAXOBST			;tabela com as posicoes dos obst
+CarObstaculo 			TAB 		NOMAXOBST 			;tabela com os carateres dos obst
+PontuacaoFinal 			TAB 		3
 VarTexto1			STR		'Prepare-se', FIM_TEXTO
 EspacoVar1			STR		'          ', FIM_TEXTO
 VarTexto2			STR		'Prima o botao IE', FIM_TEXTO
@@ -61,9 +72,9 @@ VarTextFim			STR 		'Fim do Jogo', FIM_TEXTO
 EspacoTxtF			STR		'           ', FIM_TEXTO
 VarTextPonts 			STR 		'Pontuacao: ', FIM_TEXTO
 EspacoTxtP 			STR 		'           ', FIM_TEXTO
-Tiro				TAB		NOMAXTIROS			;tabela com as posicoes dos tiros
-Obstaculo			TAB 		NOMAXOBST			;tabela com as posicoes dos obst
-CarObstaculo 			TAB 		NOMAXOBST 			;tabela com os carateres dos obst
+VarTxTLinhas 			STR 		'Linha: ', FIM_TEXTO
+VarTxTColunas 			STR 		'Coluna: ', FIM_TEXTO
+StringVazia			STR		'                                                                                ', FIM_TEXTO
 
 ; ZONA III:  INTERRUPCOES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 					ORIG		FE00h
@@ -103,7 +114,7 @@ Descer:					INC		M[IntNav]
 					RTI
 
 Subir:					INC		M[IntNav]
-					MOV		R1,0100h
+					MOV		R1, 0100h
 					NEG		R1				;Diminui em uma linha
 					MOV		M[Canhao_int], R1
 					RTI
@@ -203,7 +214,7 @@ EscreveNave:				PUSH		R1
 					POP		R1
 					RETN		1
 
-;ApagaNave:	Evoca a rotina EscCar para apagar a nave da janela
+; ApagaNave:	Evoca a rotina EscCar para apagar a nave da janela
 ;			de texto, colocando espaços em todas as posicoes da nave
 ;				Entradas:	pilha - posicao do canhao
 ;				Saidas:		posi na janela de texto das partes da nave, espaços p/EscCar
@@ -227,6 +238,240 @@ ApagaNave:				PUSH		R1
 					CALL		EscCar		;Escreve na outra asa
 					POP		R1
 					RET
+
+; _|        _|_|_|_|  _|_|_|      _|_|_|
+; _|        _|        _|    _|  _|
+; _|        _|_|_|    _|    _|    _|_|
+; _|        _|        _|    _|        _|
+; _|_|_|_|  _|_|_|_|  _|_|_|    _|_|_|
+AcendeLeds:				PUSH		R1
+					MOV		R1, FFFFh
+					MOV		M[LEDS_CONTROLO], R1
+					MOV		R1, 1
+					MOV		M[LedsAcesos], R1
+					MOV		R1, DURACAOLEDS
+					MOV		M[LedsCount], R1
+					POP		R1
+					RET
+
+ApagahLeds:				PUSH		R1
+					DEC		M[LedsCount]
+					CMP		M[LedsCount], R0
+					BR.NZ		SaiDoApaLeds
+ApagaLeds:				MOV		M[LEDS_CONTROLO], R0
+					MOV		M[LedsAcesos], R0
+SaiDoApaLeds:				POP		R1
+					RET
+
+; ___       ________  ________
+;|\  \     |\   ____\|\   ___ \
+;\ \  \    \ \  \___|\ \  \_|\ \
+; \ \  \    \ \  \    \ \  \ \\ \
+;  \ \  \____\ \  \____\ \  \_\\ \
+;   \ \_______\ \_______\ \_______\
+;    \|_______|\|_______|\|_______|
+; EscreveLCD:	Rotina que escreve no LCD, na primeira linha 'Linhas :'
+;		e na segunda 'Colunas :'
+;			Entradas: ---
+;			Saidas: ---
+;			Efeitos: Alteracao da posicao de memoria do porto de
+;			escrita e de controlo do LCD
+EscreveLCD:				PUSH 		R1
+					PUSH 		R2
+					PUSH 		R3
+					MOV 		R2, VarTxTLinhas
+					MOV 		R3, 1000000000000000b
+CicloLinLCD:				MOV 		R1, M[R2]
+					CMP 		R1, FIM_TEXTO		;compara o carater em R1 com o carater final
+					BR.Z 		EscLCDCols			;se sim escreve as COLUNAS
+					PUSH 		R3
+					PUSH 		R1
+					CALL 		EscTextoLCD
+					INC 		R2
+					INC 		R3					;passa o porto de controlo para a nova coluna do LCD
+					BR 		CicloLinLCD
+EscLCDCols:				MOV 		R2, VarTxTColunas
+					MOV 		R3, 1000000000010000b
+CicloColLCD:				MOV 		R1, M[R2]
+					CMP 		R1, FIM_TEXTO 	;compara o carater em R1 com o carater final
+					BR.Z 		SaiEscTxtLCD 	;se sim sai da rotina
+					PUSH 		R3
+					PUSH 		R1
+					CALL 		EscTextoLCD
+					INC 		R2
+					INC 		R3
+					BR 		CicloColLCD
+SaiEscTxtLCD:				POP 		R3
+					POP 		R2
+					POP 		R1
+					RET
+
+; EscTextoLCD:	rotina de suporte para a escrita de texto no LCD
+;			Entradas:	R1 com o carater a ser escrito, R3 com a posicao do mesmo
+;			Saidas: 	---
+;			Efeitos:	Alteracao do porto de escrita e de controlo do LCD
+EscTextoLCD:				PUSH 		R1
+					PUSH 		R2
+					MOV 		R1, M[SP+5]
+					MOV 		M[LCD_CONTROL], R1	;Em R3 palavra de alteracao do porto de controlo
+					MOV 		R2, M[SP+4]
+					MOV 		M[LCD_WRITE], R2	;Em R1 o carater a ser escrito
+					POP 		R2
+					POP 		R1
+					RETN 		2
+
+
+; LCDCanhaoPos:	Escreve a posicao da nave no LCD
+;			Entradas:	conteudo da posicao de memoria Canhao_pos
+;			Saidas:		---
+;			Efeitos:	Alteracao do porto de escrita e de controlo do LCD
+LCDCanhaoPos:				PUSH 		R1
+					PUSH 		R2
+					PUSH 		R3
+					PUSH 		R4
+					PUSH 		R5
+					PUSH 		R6
+					MOV 		R1, R0 		;limpa os registos
+					MOV 		R2, R0
+					MVBH 		R1, M[Canhao_pos]	;escreve as linhas do canhao em R1
+					ROR 		R1, 8			;deslocacao dos bits para o octeto
+					PUSH 		R0			;de menor peso para converter para decimal
+					PUSH 		R1
+					CALL 		CnvrtDec
+					POP 		R1			;escrita do R1 em decimal
+					ROL 		R1, 8			;rotacao para o octeto de maior peso
+
+					MVBL		R2, M[Canhao_pos] ;escreve as colunas do canhao em R2
+					PUSH 		R0
+					PUSH 		R2
+					CALL 		CnvrtDec
+					POP 		R2			;escrita do R2 em decimal
+
+					MOV 		R3, F000h		;mascara para selecao dos 4 bits mais significativos
+					MOV 		R4, 1000000000000111b	;palavara para o controlo do LCD
+CicloLinLCDCP:				MOV 		R5, R3			;escrita da mascara
+					CMP 		R5, 00F0h 		;verifica se ja escreveu os dois
+					BR.Z 		LCDColunaCPos	  	;se sim sai para escrver a posicao da coluna
+					AND 		R5, R1 			;seleciona o primeiro digito das linhas
+					ROR 		R5, 8 			;desloca os bits para serem escritos no LCD
+					CMP 		R5, 000Fh 		;verifica se o numero a ser escrito tem 2 digitos
+					BR.NP 		CnvrtLinAscii		;se nao vai para a rotina de escrita
+					ROR 		R5, 4 			;se sim desloca os bits para os menos significativos
+
+CnvrtLinAscii:				ADD 		R5,'0'			;conversao para ASCII
+					PUSH 		R4
+					PUSH 		R5
+					CALL 		EscTextoLCD 		;rotina de escrita no LCD
+					ROR 		R3, 4			;rotacao da mascara em R3 para selecao do bit seguinte
+					INC 		R4 			;mudanca de coluna de escrita no LCD
+					BR 		CicloLinLCDCP 		;repete para a escrita do segundo digito da linha
+LCDColunaCPos:				MOV 		R4, 1000000000010111b	;mudanca de linha de escrita do LCD
+CicloColLCDCP:				MOV 		R5, R3 			;atualizacao da mascara em R5
+					CMP 		R5, F000h 		;verifica se ja escreveu os dois digitos
+					BR.Z 		SaiLCDCPos 		;se sim sai da rotina de escrita
+					AND 		R5, R2 			;seleciona o primeiro digito das colunas
+					CMP 		R5, 000Fh 		;verifica se o numero a ser escrito tem 2 digitos
+					BR.NP 		CnvrtColAscii 		;se nao vai para a rotina de escrita
+					ROR 		R5, 4 			;se sim desloca os bits para a posicao correta
+CnvrtColAscii:				ADD 		R5, '0'			;conversao para ASCII
+					PUSH 		R4
+					PUSH 		R5
+					CALL 		EscTextoLCD 		;escrita no LCD
+					ROR 		R3, 4 			;rotacao da mascara em R3 para selecao do bit seguinte
+					INC 		R4 			;mudanca de coluna de escrita no LCD
+					BR 		CicloColLCDCP 		;repete para a escrita do segundo digito da coluna
+SaiLCDCPos:				POP  		R6
+					POP 		R5
+					POP 		R4
+					POP 		R3
+					POP 		R2
+					POP 		R1
+					RET
+
+; CnvrtDec:	Rotina que dado um numero em hexa, converte-o para decimal
+;			Entradas:	pilha - numero para conversao
+;			Saidas:		pilha - numer convertido em decimal
+;			Efeitos:	---
+CnvrtDec: 				PUSH 		R1
+					PUSH 		R2
+					MOV 		R1, M[SP+4]		;escrita em R1 do numero a ser convertido
+					MOV 		R2, 10
+					DIV 		R1, R2			;resultado em R1 e o resto em R2
+					SHL 		R1, 4			;rotacao a esquerda para poder concatenar
+					ADD 		R1, R2			;o resto com o resultado da divisao
+					MOV 		M[SP+5], R1		;guarda na pilha
+					POP 		R2
+					POP 		R1
+					RETN 		1
+
+;7MM111Yb. `7MMF' .MPQQbgd  `7MMHHHMq.`7MMF'            db   `YMM'   `MM'
+;  MM    `Yb. MM  ,MI    Y    MM   `MM. MM             :MM:    VMA   ,V
+;  MM     `Mb MM  `MMb.       MM   ,M9  MM            ,V^MM.    VMA ,V
+;  MM      MM MM    `YMMNq.   MMmmdM9   MM           ,M  `MM     VMMP
+;  MM     ,MP MM  .     `MM   MM        MM      ,    AbmmmqMA     MM
+;  MM    ,dP' MM  Mb     dM   MM        MM     ,M   A'     VML    MM
+;.JMMmmmdP' .JMML.PHYbmmdP  .JMML.    .JMMmmmmMMM .AMA.   .AMMA..JMML.
+
+EscDisplay: 				PUSH 		R1
+					PUSH 		R2
+					PUSH 		R3
+					PUSH 		R4
+					PUSH 		R5
+					PUSH 		R6
+					MOV 		R1, M[Pontuacao]  ;escrita da pontuacao em R1
+					MOV 		R4, IO_DISPLAY 	  ;escrita da posicao de memoria do primeiro display
+					MOV 		R6, PontuacaoFinal
+
+					PUSH 		R0
+					PUSH 		R1
+					CALL 		CnvrtDec   		;conversao para decimal do numero em R1
+					POP 		R1
+
+					MOV 		R3, 000Fh 		 ;mascara para selecao de bits
+CicloEscDSP: 				MOV 		R5, R3
+					AND 		R5, R1  		 ;escrita do bit em R5
+					MOV 		M[R4], R5 		 ;escrita do bit no display
+					MOV 		M[R6], R5 		 ;escrita do bit na tab de PontuacaoFinal
+					ROL 		R3,4 			 ;rotacao da mascara
+					INC 		R4 				 ;proximo display
+					INC 		R6 				 ;proxima posicao da tab PontuacaoFinal
+
+					MOV 		R5, R3 			 ;escrita do bit em R5
+					AND 		R5, R1 			 ;escrita do bit no display
+					ROR 		R5, 4 			 ;escrita do bit na tab de PontuacaoFinal
+					MOV 		M[R4], R5 		 ;rotacao da mascara
+					MOV 		M[R6], R5 		 ;proximo display
+					ROL 		R3,4 			 ;proxima posicao da tab PontuacaoFinal
+
+SaiEscDSP:				POP 		R6
+					POP 		R5
+					POP 		R4
+					POP 		R3
+					POP 		R2
+					POP 		R1
+					RET
+
+PontFinal:				PUSH 		R1
+					PUSH 		R2
+					PUSH 		R3
+					MOV 		R3, PontuacaoFinal ;escreve em R3 a pontuacao final
+					MOV 		R1, M[R3] 		   ;escreve em R1, o primeiro digito da pontuacao
+					ADD 		R1, '0' 		   ;conversao para ASCII
+					MOV 		M[R3],R1 		   ;escreve na tabela o digito da pontuacao em ASCII
+					INC 		R3 				   ;proxima posicao da tabela
+					MOV  		R2, M[R3] 		   ;escreve em R2, o segundo digito da pontuacao
+					ADD 		R2, '0' 		   ;conversao para ASCII
+					MOV 		M[R3], R2 		   ;escreve na tabela o digito da pontuacao em ASCII
+					POP 		R3
+					POP 		R2
+					POP 		R1
+					RET
+
+; _|      _|  _|_|_|_|  _|      _|    _|_|_|    _|_|      _|_|_|  _|_|_|_|  _|      _|    _|_|_|
+; _|_|  _|_|  _|        _|_|    _|  _|        _|    _|  _|        _|        _|_|    _|  _|
+; _|  _|  _|  _|_|_|    _|  _|  _|    _|_|    _|_|_|_|  _|  _|_|  _|_|_|    _|  _|  _|    _|_|
+; _|      _|  _|        _|    _|_|        _|  _|    _|  _|    _|  _|        _|    _|_|        _|
+; _|      _|  _|_|_|_|  _|      _|  _|_|_|    _|    _|    _|_|_|  _|_|_|_|  _|      _|  _|_|_|
 ; EscreveMsgIni:	Evoca a rotina EscString para escrever a mensagem inicial na janela
 ;					Entradas:	---
 ;					Saidas:		posi de mem das strings, posi na janela p/ EscString
@@ -297,9 +542,9 @@ ApagaFim:				MOV 		M[IntNav],R0
 					RET
 
 ; EscreveLimite:	Evoca a rotina EscCar para escrever uma linha de limite
-;				Entradas: pilha - coordenada do inicio e fim do limite
-;				Saidas: ---
-;				Efeitos: ---
+;				Entradas:	pilha - coordenada do inicio e fim do limite
+;				Saidas:		---
+;				Efeitos:	---
 EscreveLimite:				PUSH		R1
 					MOV		R1, M[SP+4]			;limite inferior
 CicloLim:				CMP		R1, M[SP+3]			;limite superior
@@ -311,6 +556,55 @@ CicloLim:				CMP		R1, M[SP+3]			;limite superior
 					BR		CicloLim
 FimEscLim:				POP		R1
 					RETN		2
+
+LimparMemorias:				PUSH		Tiro
+					PUSH		NOMAXTIROS
+					CALL		LimpaMemoria
+					PUSH		Obstaculo
+					PUSH		NOMAXOBST
+					CALL		LimpaMemoria
+					PUSH		CarObstaculo
+					PUSH		NOMAXOBST
+					CALL		LimpaMemoria
+					RET
+
+LimparEcra:				PUSH		R1
+					MOV		R1, R0
+CicloLimpa:				PUSH		StringVazia
+					PUSH		R1
+					CALL		EscString
+					CMP		R1, 1800h
+					BR.Z		SaiDoLimpaEcra
+					ADD		R1, 0100h
+					BR		CicloLimpa
+SaiDoLimpaEcra:				POP		R1
+					RET
+
+
+LimpaMemoria:				PUSH		R1
+					PUSH		R2
+					MOV		R1, M[SP+5]
+					MOV		R2, M[SP+4]
+HaveraMem:				CMP		R2, R0
+					BR.Z		SaiDoLimpaMem
+					MOV		M[R1], R0
+					INC		R1
+					DEC		R2
+					BR		HaveraMem
+SaiDoLimpaMem:				POP		R2
+					POP		R1
+					RETN		2
+
+LimpaFlags:				MOV		M[IntNav], R0
+					MOV		M[IntTiro], R0
+					MOV		M[IntE], R0
+					MOV		M[IntTemp], R0
+					MOV		M[NoTiros], R0
+					MOV		M[NoObstaculos], R0
+					MOV		M[PosUltAst], R0
+					MOV		M[ContaBuracoN], R0
+					MOV		M[ContadorTemp], R0
+					RET
 
 ;  ZONA IV.III ROTINAS DA NAVE -------------------------------------------------
 ; _|      _|    _|_|    _|      _|  _|_|_|_|
@@ -332,23 +626,31 @@ Nave:					PUSH		R1
 					DEC		M[IntNav]			;Reinicia a flag do mov da nave
 					MOV		R1, M[Canhao_pos]
 					ADD		R1, M[Canhao_int]		;Mete em R1 a posi nova da nave
-ChocaSuperior:				CMP		R1, 0200h			;Choca com o limite superior?
-					BR.NP		FimNave
-ChocaInferior:				CMP		R1, 1600h			;Choca com o limite inferior?
-					BR.NN		FimNave
-ChocaEsquerda:				MOV		R3, R0
+NChocaSuperior:				CMP		R1, 0200h			;Choca com o limite superior?
+					JMP.NP		FimNave
+NChocaInferior:				CMP		R1, 1600h			;Choca com o limite inferior?
+					JMP.NN		FimNave
+NChocaEsquerda:				MOV		R3, R0
 					MVBL		R3, R1
 					CMP		R3, 0000h			;Choca com o limite da esquerda?
-					BR.NP		FimNave
-ChocaDireita:				MOV		R3, R0				;SERAO ESTAS LINHAS OPCIOONAIS AAOMSAOMAIOSA
+					JMP.NP		FimNave
+NChocaDireita:				MOV		R3, R0				;SERAO ESTAS LINHAS OPCIOONAIS AAOMSAOMAIOSA
 					MVBL		R3, R1
 					CMP		R3, 004Fh			;Choca com o limite da direita?
-					BR.NN		FimNave
-DentroMapa:				PUSH		R1				;Esta dentro, pode escrever nave
-					CALL		ApagaNave
+					JMP.NN		FimNave
+NChocaObstac:				PUSH		R0
+					PUSH		R1
+					PUSH		Obstaculo
+					PUSH		M[NoObstaculos]
+					CALL		HaNaveLa
+					POP		R3
+					CMP		R3, R0
+					JMP.NZ		Final
+DentroMapa:				CALL		ApagaNave			;Esta dentro, pode escrever nave
+					PUSH		R1
 					CALL		EscreveNave
 					MOV		M[Canhao_pos], R1
-					;MOV		M[LCD_WRITE], R1
+					CALL 		LCDCanhaoPos
 FimNave:				ENI
 					POP		R3
 					POP		R1
@@ -361,8 +663,8 @@ FimNave:				ENI
 ;  +#+     +#+        +#+    +#+     +#+        +#+    +#+ +#+    +#+    +#+     +#+    +#+ +#+              +#+
 ; #+#     #+# #+#    #+#    #+#     #+#        #+#    #+# #+#    #+#    #+#     #+#    #+# #+#       #+#    #+#
 ;###     ###  ########     ###     ########## ###    ###  ######## ########### #########  ########## ########
-; Asteroides:
-Asteroides:			PUSH		R1
+; Obstaculos:
+Obstaculos:				PUSH		R1
 					PUSH		R2
 					PUSH		R3
 					PUSH		R4
@@ -372,15 +674,15 @@ Asteroides:			PUSH		R1
 					MOV		R2, Obstaculo			;Em R2 mete a posi de mem do 1o obstaculos
 					MOV		R5, CarObstaculo		;Em R5 a posi de mem do car do 1o obstaculo
 					MOV		R4, M[NoObstaculos]		;Em R4 mete o n de obstaculos a verificar
-HaveraAsts:			CMP		R4, R0				;Todos os obstaculos verificados?
-				BR.Z		SaiDosAsts			;Se sim, nao move nada
+HaveraObsts:				CMP		R4, R0				;Todos os obstaculos verificados?
+					BR.Z		SaiDosObsts			;Se sim, nao move nada
 
-TestaMemAsts:			CMP		M[R2], R0			;Testa se ha obstaculos na posicao R2
-					BR.NZ		MoveAsteroide			;Se houver, usa essa posicao
+TestaMemObsts:				CMP		M[R2], R0			;Testa se ha obstaculos na posicao R2
+					BR.NZ		MoveObstaculo			;Se houver, usa essa posicao
 					INC		R2				;Se nao, verifica na proxima
 					INC		R5				;A posi de mem do car acompanha
-				BR		TestaMemAsts
-MoveAsteroide:			DEC		R4				;Diminui o n de obstaculos a verificar
+					BR		TestaMemObsts
+MoveObstaculo:				DEC		R4				;Diminui o n de obstaculos a verificar
 					MOV		R3, M[R2]			;Escreve em R3 a posicao do obstaculo
 					SUB		R3, R1				;Calcula a nova posicao
 					PUSH		M[R2]				;Manda a posicao inicial
@@ -390,43 +692,43 @@ MoveAsteroide:			DEC		R4				;Diminui o n de obstaculos a verificar
 					CALL		VeriColisoes			;Verifica colisoes e move ou nao
 					INC		R2				;Aumenta a posi de mem a verificar
 					INC		R5				;A posi de mem dos caracteres acompanha
-				BR		HaveraAsts			;Repete para a proxima posi de mem
-SaiDosAsts:			POP 		R5
+					BR		HaveraObsts			;Repete para a proxima posi de mem
+SaiDosObsts:				POP 		R5
 					POP		R4
 					POP		R3
 					POP		R2
-				POP		R1
-				RET
+					POP		R1
+					RET
 
 
 
 
 ; GeraObstaculos
-GeraObstaculos: 		PUSH		R1
+GeraObstaculos: 			PUSH		R1
 					PUSH		R2
 					INC 		M[PosUltAst]
 					MOV		R1, PERIODAST
-					CMP 		M[PosUltAst], R1		;Ve se ja passaram 5 posis
-					BR.NZ		FimGeraAst			;Se nao, sai
+					CMP 		R1, M[PosUltAst]		;Ve se ja passaram 5 posis
+					BR.NN		FimGeraObst			;Se nao, sai
 					MOV  		M[PosUltAst],R0			;Se sim, reinicia contador
 					MOV		R1, PERIODBUR
 					MOV		R2, M[ContaBuracoN]
 					CMP 		R2, R1				;Ja passaram 3 asteroides?
-				BR.NZ 		GeraAstFalse			;Se nao, salta para false
-GeraAstTrue:			MOV		M[ContaBuracoN], R0		;Se sim, reinicia o contador do buraco negro
-				PUSH 		BNEGRO				;Manda buraco negro e cria obstaculo
-				BR 		ContGeraAst
-GeraAstFalse:			INC 		M[ContaBuracoN]			;Se nao: incrementa o contador para criar o buraco negro
-				PUSH		ASTERISCO			;Manda asteroide e cria obstaculo
-ContGeraAst:			CALL 		CriaObstaculo
-FimGeraAst:			POP		R2
-				POP		R1
-				RET
+					BR.NZ 		GeraObstFalse			;Se nao, salta para false
+GeraObstTrue:				MOV		M[ContaBuracoN], R0		;Se sim, reinicia o contador do buraco negro
+					PUSH 		BNEGRO				;Manda buraco negro e cria obstaculo
+					BR 		ContGeraObst
+GeraObstFalse:				INC 		M[ContaBuracoN]			;Se nao: incrementa o contador para criar o buraco negro
+					PUSH		ASTERISCO			;Manda asteroide e cria obstaculo
+ContGeraObst:				CALL 		CriaObstaculo
+FimGeraObst:				POP		R2
+					POP		R1
+					RET
 
 
 
 ; CriaObstaculo
-CriaObstaculo: 			PUSH 		R1
+CriaObstaculo: 				PUSH 		R1
 					PUSH 		R2
 					PUSH 		R3
 					PUSH 		R4
@@ -436,24 +738,24 @@ CriaObstaculo: 			PUSH 		R1
 					BR.Z 		SaiDosCObst			;Se sim, sai do ciclo
 					INC 		M[NoObstaculos]			;Se nao, adiciona novo obstaculo
 					MOV 		R2, Obstaculo			;Em R2 a posi de memoria do 1o obst
-				MOV 		R3, CarObstaculo		;Em R3 a posi de mem do caracter do 1o obst
-TestaMemCObst: 			CMP 		M[R2], R0			;Ja ha algum tiro nesta posi?
+					MOV 		R3, CarObstaculo		;Em R3 a posi de mem do caracter do 1o obst
+TestaMemCObst: 				CMP 		M[R2], R0			;Ja ha algum tiro nesta posi?
 					BR.Z 		GuardaObst			;Se nao, guarda nessa posi (salto)
 					INC 		R2				;Se houver, verifica na proxima
 					INC 		R3
-				BR		TestaMemCObst
-GuardaObst: 			PUSH		R0
+					BR		TestaMemCObst
+GuardaObst: 				PUSH		R0
 					CALL 		PseudoRndm			;Se nao: gera numero random
 					POP		R1				;Em R5 o numero random
 					SHL		R1, 8
 					ADD		R1, 024Eh
 					MOV 		M[R2], R1			;A posicao do obstaculo eh o numero random
 					MOV 		M[R3], R4			;Mete o tipo de obstaculo na memoria
-SaiDosCObst:			POP 		R4
+SaiDosCObst:				POP 		R4
 					POP 		R3
 					POP 		R2
 					POP 		R1
-				RETN 		1
+					RETN 		1
 
 ; _|_|_|_|_|  _|_|_|  _|_|_|      _|_|      _|_|_|
 ;     _|        _|    _|    _|  _|    _|  _|
@@ -462,57 +764,57 @@ SaiDosCObst:			POP 		R4
 ;     _|      _|_|_|  _|    _|    _|_|    _|_|_|
 
 ;CriaTiro
-CriaTiro:			PUSH		R1
+CriaTiro:				PUSH		R1
 					PUSH		R2
 					MOV		M[IntTiro], R0			;Reinicia a flag dos tiros
 					MOV		R1, NOMAXTIROS
 					CMP		M[NoTiros], R1			;Numero max de tiros foi atingido?
 					BR.Z		SaiDoCTiros			;Se sim, nao cria nada,sai do ciclo
 					INC		M[NoTiros]			;Adiciona novo tiro
-				MOV		R2, Tiro			;Em R2 mete a posi de mem do 1o tiro
-TestaMemCTiro:			CMP		M[R2], R0			;Ja ha algum tiro nessa posi
+					MOV		R2, Tiro			;Em R2 mete a posi de mem do 1o tiro
+TestaMemCTiro:				CMP		M[R2], R0			;Ja ha algum tiro nessa posi
 					BR.Z		GuardaTiro			;Se nao, guarda nessa posi
 					INC		R2				;Se houver, verifica na proxima posi
 					BR		TestaMemCTiro
-GuardaTiro:			MOV 		R1, M[Canhao_pos]		;Se nao: Tiro na posi a seguir ao canhao
-				ADD		R1, 0001h
-				MOV		M[R2], R1
-SaiDoCTiros:			POP		R2
-				POP		R1
-				RET
+GuardaTiro:				MOV 		R1, M[Canhao_pos]		;Se nao: Tiro na posi a seguir ao canhao
+					ADD		R1, 0001h
+					MOV		M[R2], R1
+SaiDoCTiros:				POP		R2
+					POP		R1
+					RET
 
 ;Tiros
-Tiros:				PUSH		R1
+Tiros:					PUSH		R1
 					PUSH		R2
 					PUSH		R3
 					PUSH		R4
 					MOV		R1, 0001h
 					MOV		R2, Tiro			;Em R2 mete a posi de mem do 1o tiro
 					MOV		R4, M[NoTiros]			;Em R4 mete o n de tiros a verificar
-HaveraTiros:		CMP		R4, R0				;Todos os tiros verificados?
+HaveraTiros:				CMP		R4, R0				;Todos os tiros verificados?
 					BR.Z		SaiDosTiros			;Se sim, nao move nada
 
-TestaMemTiro:		CMP		M[R2], R0			;Testa se ha tiros na posicao R2
+TestaMemTiro:				CMP		M[R2], R0			;Testa se ha tiros na posicao R2
 					BR.NZ		MoveTiro			;Se houver, usa essa posicao
 					INC		R2				;Se nao, verifica na proxima
 					BR		TestaMemTiro
 
-MoveTiro:			DEC		R4				;Diminui o n de tiros a verificar
+MoveTiro:				DEC		R4				;Diminui o n de tiros a verificar
 					MOV		R3, M[R2]
 					ADD		R3, R1				;Calcula a nova posicao
 
-				PUSH		M[R2]				;Manda a posicao inicial
-				PUSH		R3				;Manda a posicao seguinte
-				PUSH		R2				;Manda o endereco de memoria
-				PUSH		BALA				;Manda o caracter
-				CALL		VeriColisoes
-				INC		R2
-				BR		HaveraTiros			;Repete para a proxima posi de mem
-SaiDosTiros:			POP		R4
-				POP		R3
-				POP		R2
-				POP		R1
-				RET
+					PUSH		M[R2]				;Manda a posicao inicial
+					PUSH		R3				;Manda a posicao seguinte
+					PUSH		R2				;Manda o endereco de memoria
+					PUSH		BALA				;Manda o caracter
+					CALL		VeriColisoes
+					INC		R2
+					BR		HaveraTiros			;Repete para a proxima posi de mem
+SaiDosTiros:				POP		R4
+					POP		R3
+					POP		R2
+					POP		R1
+					RET
 
 ; e88~-_    ,88~-_   888     888 ,d88~~\   ,88~-_   888~~  ,d88~~\
 ;d888   \  d888   \  888     888 8888     d888   \  888___ 8888
@@ -532,14 +834,17 @@ VeriColisoes:				PUSH		R1
 					PUSH		R3
 					PUSH		R4
 					PUSH		R5
-					MOV		R1, M[SP+000Ah]		;Recebe a posicao inicial, em R1
-					MOV		R2, M[SP+0009h]		;Recebe a posicao seguinte, em R2
-					MOV		R3, M[SP+0008h]		;Recebe o endereco de memoria da posicao, em R3
-					MOV		R4, M[SP+0007h]		;Recebe o caracter, em R4
+					PUSH		R6
+					MOV		R1, M[SP+000Bh]		;Recebe a posicao inicial, em R1
+					MOV		R2, M[SP+000Ah]		;Recebe a posicao seguinte, em R2
+					MOV		R3, M[SP+0009h]		;Recebe o endereco de memoria da posicao, em R3
+					MOV		R4, M[SP+0008h]		;Recebe o caracter, em R4
 					MOV		R5, R0
-					MVBL		R5, R2
-ColLimEsq:				CMP		R5, 0001h		;Choca com o limite da esquerda?
-					BR.P		ColLimDir		;Se nao, testa o outro limite
+					MVBL		R5, R2		;00FF
+					MOV		R6, R5
+					SHL 		R6, 8
+ColLimEsq:				CMP		R6, 0000h		;Choca com o limite da esquerda?
+					BR.NN		ColLimDir		;Se nao, testa o outro limite
 					PUSH		R1			;Se sim eh porque eh obstaculo e manda posi ini
 					PUSH		R3			;Manda endereco memoria do obst
 					CALL		ApagaObstaculo		;Apaga o obstaculo
@@ -554,7 +859,7 @@ ColLimDir:				CMP		R5, 004Fh		;Choca com o limite da direita?
 					PUSH		R4
 					CALL		EscCar
 ColTiro:				CMP		R4, BALA		;Eh tiro?
-					JMP.NZ		ColAst			;Se nao, testa se eh asteroide
+					JMP.NZ		ColAst			;Se nao, eh asteroide
 					PUSH		R0			;Guarda espaco para o retorno
 					PUSH		Obstaculo		;Manda o endereco inicial da tabela a percorrer
 					PUSH		R2			;Manda a posicao a verificar
@@ -568,9 +873,7 @@ ColTiro:				CMP		R4, BALA		;Eh tiro?
 					PUSH		R5
 					PUSH		SaiDasColisoes
 					JMP		ColTiroObs
-ColAst:					CMP		R4, ASTERISCO		;Eh asteroide?
-					;JMP.NZ		ColBrn		;Se nao, testa se eh buraco negro
-					PUSH		R0			;Guarda espaco para o retorno
+ColAst:					PUSH		R0			;Guarda espaco para o retorno
 					PUSH		Tiro			;Manda o endereco inicial da tabela a percorrer
 					PUSH		R2			;Manda a posicao a verificar
 					PUSH		M[NoTiros]		;Manda o no de tiros no ecra
@@ -587,11 +890,10 @@ ColcNave:				PUSH		R0
 					PUSH		M[Canhao_pos]
 					PUSH		R3
 					PUSH		1
-
 					CALL		HaNaveLa
 					POP		R5
 					CMP		R5, R0
-					BR.NZ		SaiDasColisoes
+					JMP.NZ		Final
 EscreveObjecto:				PUSH		R1			;Apagar o objecto do ecra
 					PUSH		ESPACO
 					CALL		EscCar
@@ -599,7 +901,8 @@ EscreveObjecto:				PUSH		R1			;Apagar o objecto do ecra
 					PUSH		R4
 					CALL		EscCar
 					MOV		M[R3], R2		;Escreve a nova posicao na memoria
-SaiDasColisoes:				POP		R5
+SaiDasColisoes:				POP		R6
+					POP		R5
 					POP		R4
 					POP		R3
 					POP		R2
@@ -623,6 +926,9 @@ ColTiroObs:				PUSH		R1
 					PUSH		M[R4]			;Se nao, manda a posicao do obst
 					PUSH		R4			;Manda endereco de mem do obst e apaga
 					CALL		ApagaObstaculo
+					CALL		AcendeLeds
+					CALL 		EscDisplay
+
 ColTirosObsFim:				PUSH		M[R3]			;Manda a posicao inicial do tiro
 					PUSH		R3			;Endereco de mem do tiro e apaga
 					CALL		ApagaTiro
@@ -633,10 +939,10 @@ ColTirosObsFim:				PUSH		M[R3]			;Manda a posicao inicial do tiro
 					RETN		3
 
 ; ApagaTiro
-ApagaTiro:				PUSH		R1					;Posi inicial
-					PUSH		R3					;Endereco de mem
-					MOV		R1, M[SP+5]
-					MOV		R3, M[SP+4]
+ApagaTiro:				PUSH		R1
+					PUSH		R3
+					MOV		R1, M[SP+5]				;Posi inicial
+					MOV		R3, M[SP+4]				;Endereco de mem
 					PUSH		R1					;Apagar do ecra
 					PUSH		ESPACO
 					CALL		EscCar
@@ -647,11 +953,11 @@ ApagaTiro:				PUSH		R1					;Posi inicial
 					RETN		2
 
 ; ApagaObstaculo
-ApagaObstaculo:				PUSH		R1				;Recebe posi inicial
-					PUSH		R3				;Recebe o endereco de memoria
+ApagaObstaculo:				PUSH		R1
+					PUSH		R3
 					PUSH		R5
-					MOV		R1, M[SP+6]
-					MOV		R3, M[SP+5]
+					MOV		R1, M[SP+6]			;Recebe posi inicial em R1
+					MOV		R3, M[SP+5]			;Recebe o endereco de memoria em R3
 					PUSH		R1				;Apagar do ecra
 					PUSH		ESPACO
 					CALL		EscCar
@@ -733,15 +1039,12 @@ HaNaveLa:				PUSH		R1
 					POP		R4
 					CMP		R4, R0
 					JMP.NZ		SaiDoHaNave
-SaiDoHaNave:				MOV		M[SP+9], R4
+SaiDoHaNave:				MOV		M[SP+9], R4		;Manda para fora 0 ou o endereço
 					POP		R4
 					POP		R3
 					POP		R2
 					POP		R1
 					RETN		3
-
-
-
 
 ;_|_|_|_|_|  _|_|_|_|  _|      _|  _|_|_|      _|_|    _|_|_|    _|_|_|
 ;    _|      _|        _|_|  _|_|  _|    _|  _|    _|  _|    _|    _|
@@ -761,12 +1064,14 @@ Chamar_Temp:				PUSH		R7
 Temporizador:				DEC		M[IntTemp]
 					CALL		Chamar_Temp
 					CALL		Tiros
+					CMP		M[LedsAcesos], R0
+					CALL.NZ		ApagahLeds
 					CMP 		M[ContadorTemp], R0		;Ja vai na 2a vez?
-					BR.NZ 		TempAstTrue			;Se sim, salta para o true
-TempAstFalse:				INC 		M[ContadorTemp]			;Se nao, aumenta a variavel e sai
+					BR.NZ 		TempObstTrue			;Se sim, salta para o true
+TempObstFalse:				INC 		M[ContadorTemp]			;Se nao, aumenta a variavel e sai
 					BR 		SaiDoTemp
-TempAstTrue:				MOV 		M[ContadorTemp], R0		;Se sim: reinicia o contador
-					CALL 		Asteroides			;Corre asteroides
+TempObstTrue:				MOV 		M[ContadorTemp], R0		;Se sim: reinicia o contador
+					CALL 		Obstaculos			;Corre Obstaculos
 SaiDoTemp:				RET
 
 ;  ZONA IV.IV ROTINAS DE LIMITES -----------------------------------------------
@@ -807,11 +1112,13 @@ Inicio:				MOV		R7, SP_INICIAL
 				ENI
 				CALL		EscreveMsgIni
 				CALL		EsperaInicio			;Aguardar pela resposta do utilizador
-
+				CALL		LimpaFlags
 				CALL		EscreveLimites			;Escrever nave e limites
 				PUSH		M[Canhao_pos]
 				CALL		EscreveNave
 				CALL		Chamar_Temp
+				CALL 		EscreveLCD
+				CALL 		LCDCanhaoPos
 
 				JMP		Jogo
 
@@ -872,8 +1179,12 @@ FimPseudo: 			MOV 		M[RandomNumb], R2
 ; Final:
 Final:				MOV		R7, INT_MASK2			;MASK2 durante a mesnagem final
 				MOV		M[INT_MASK_ADDR], R7
+				ENI
+				CALL		LimparEcra
 				CALL		EscreveMsgFin
 				CALL		EsperaFim
+				CALL		LimparMemorias
+				CALL		LimparEcra
 				JMP 		Inicio
 
 Fim:				BR		Fim
